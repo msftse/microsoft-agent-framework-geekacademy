@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from azure.identity.aio import AzureCliCredential
+from azure.identity.aio import DefaultAzureCredential
 from agent_framework.azure import AzureAIAgentClient
 
 from pipeline.config import load_settings
@@ -37,7 +37,7 @@ class AppState:
     """Holds resources created during server lifespan."""
 
     def __init__(self):
-        self.credential: AzureCliCredential | None = None
+        self.credential: DefaultAzureCredential | None = None
         self.agents: dict = {}
         self.pipeline = None
 
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     settings = load_settings()
     setup_tracing(settings)
 
-    state.credential = AzureCliCredential()
+    state.credential = DefaultAzureCredential()
     client = AzureAIAgentClient(
         project_endpoint=settings.project_endpoint,
         model_deployment_name=settings.model_deployment,

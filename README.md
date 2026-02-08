@@ -18,6 +18,7 @@
   <a href="#evaluation">Evaluation</a> &bull;
   <a href="#api-server">API Server</a> &bull;
   <a href="#frontend">Frontend</a> &bull;
+  <a href="#docker">Docker</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -30,6 +31,7 @@
   <img src="https://img.shields.io/badge/A2A-Protocol-8B5CF6.svg" alt="A2A Protocol">
   <img src="https://img.shields.io/badge/Azure%20AI-Evaluation-E83E8C.svg" alt="Azure AI Evaluation">
   <img src="https://img.shields.io/badge/FastAPI-SSE%20Streaming-009688.svg" alt="FastAPI SSE">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED.svg" alt="Docker">
 </p>
 
 ---
@@ -188,6 +190,8 @@ Pipeline complete!
 ```
 ├── .env.example          # Environment variable template
 ├── .gitignore            # Protects .env and caches
+├── Dockerfile            # Multi-stage Docker build (Python + Node.js)
+├── docker-compose.yml    # One-command startup with .env
 ├── pyproject.toml        # Dependencies and project metadata
 ├── run.py                # Entry point — python run.py
 ├── pipeline/
@@ -488,6 +492,37 @@ python3 -m api.server
 ```
 
 The frontend is served at the root (`/`). Switch between Pipeline and Single Agent modes using the toggle in the header.
+
+---
+
+## Docker
+
+Run the entire application in a container — no local Python or Node.js required.
+
+### Prerequisites
+
+Add service principal credentials to your `.env` file (since `az login` is not available inside Docker):
+
+```env
+AZURE_TENANT_ID=your-tenant-id
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+```
+
+### Run with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+The app starts on `http://localhost:8000` with the frontend, API, and all agents ready.
+
+### Run with Docker directly
+
+```bash
+docker build -t maf-poc .
+docker run -p 8000:8000 --env-file .env maf-poc
+```
 
 ---
 

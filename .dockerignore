@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+dist/
+src/
+evaluation/results.json
+assests/
+*.md
+LICENSE
+azuredeploy.json
+.env.example
