@@ -1,0 +1,46 @@
+name: Evaluation Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  EVALUATION_THRESHOLD: "4.0"
+
+jobs:
+  evaluate:
+    name: AI Quality Evaluation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install .
+
+      - name: Run evaluation gate
+        env:
+          PROJECT_ENDPOINT: ${{ secrets.PROJECT_ENDPOINT }}
+          MODEL_DEPLOYMENT_NAME: ${{ secrets.MODEL_DEPLOYMENT_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: python -m evaluation.ci --threshold ${{ env.EVALUATION_THRESHOLD }}
+
+      - name: Upload evaluation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results
+          path: evaluation/results.json
+          retention-days: 30

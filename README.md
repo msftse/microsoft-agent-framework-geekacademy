@@ -19,6 +19,7 @@
   <a href="#api-server">API Server</a> &bull;
   <a href="#frontend">Frontend</a> &bull;
   <a href="#docker">Docker</a> &bull;
+  <a href="#ci--evaluation-gate">CI</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -32,6 +33,7 @@
   <img src="https://img.shields.io/badge/Azure%20AI-Evaluation-E83E8C.svg" alt="Azure AI Evaluation">
   <img src="https://img.shields.io/badge/FastAPI-SSE%20Streaming-009688.svg" alt="FastAPI SSE">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED.svg" alt="Docker">
+  <img src="https://img.shields.io/badge/CI-Evaluation%20Gate-F5A623.svg" alt="CI Evaluation Gate">
 </p>
 
 ---
@@ -190,6 +192,8 @@ Pipeline complete!
 ```
 ├── .env.example          # Environment variable template
 ├── .gitignore            # Protects .env and caches
+├── .github/workflows/
+│   └── evaluation.yml    # CI evaluation gate for PRs
 ├── Dockerfile            # Multi-stage Docker build (Python + Node.js)
 ├── docker-compose.yml    # One-command startup with .env
 ├── pyproject.toml        # Dependencies and project metadata
@@ -209,7 +213,8 @@ Pipeline complete!
 ├── evaluation/
 │   ├── __init__.py
 │   ├── dataset.jsonl      # 5-sample eval dataset (query + response pairs)
-│   └── run.py             # Runs Coherence, Fluency, Relevance evaluators
+│   ├── run.py             # Runs Coherence, Fluency, Relevance evaluators
+│   └── ci.py              # CI gate — exits non-zero if scores below threshold
 ├── api/
 │   ├── __init__.py
 │   └── server.py          # FastAPI server with SSE streaming endpoints
@@ -522,6 +527,38 @@ The app starts on `http://localhost:8000` with the frontend, API, and all agents
 ```bash
 docker build -t maf-poc .
 docker run -p 8000:8000 --env-file .env maf-poc
+```
+
+---
+
+## CI — Evaluation Gate
+
+Every pull request to `main` automatically runs the AI quality evaluation suite via GitHub Actions. The PR is blocked if any score falls below the threshold.
+
+### How It Works
+
+1. PR is opened against `main`
+2. GitHub Action installs dependencies and runs `python -m evaluation.ci --threshold 4.0`
+3. Coherence, Fluency, and Relevance evaluators score the dataset against Azure AI Foundry
+4. If any metric scores below **4.0/5.0**, the check fails and the PR cannot be merged
+5. Results are posted as a summary on the PR and uploaded as an artifact
+
+### Required GitHub Secrets
+
+Configure these in your repo under **Settings > Secrets and variables > Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `PROJECT_ENDPOINT` | Azure AI Foundry project endpoint |
+| `MODEL_DEPLOYMENT_NAME` | Model deployment name (e.g., `gpt-4o`) |
+| `AZURE_TENANT_ID` | Service principal tenant ID |
+| `AZURE_CLIENT_ID` | Service principal client ID |
+| `AZURE_CLIENT_SECRET` | Service principal secret |
+
+### Run Locally
+
+```bash
+python -m evaluation.ci --threshold 4.0
 ```
 
 ---
