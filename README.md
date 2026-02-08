@@ -29,7 +29,7 @@
 
 ## Deploy to Azure
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmsftse%2Fmicrosoft-agent-framework-poc-geekacademy%2Fmain%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmsftse%2Fmicrosoft-agent-framework-geekacademy%2Fmain%2Fazuredeploy.json)
 
 > Deploys an Azure AI Foundry project with a `gpt-4o` model deployment and Application Insights for tracing.
 
@@ -97,8 +97,8 @@ This project demonstrates how to build a **multi-agent content creation pipeline
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/msftse/microsoft-agent-framework-poc-geekacademy.git
-cd microsoft-agent-framework-poc-geekacademy
+git clone https://github.com/msftse/microsoft-agent-framework-geekacademy.git
+cd microsoft-agent-framework-geekacademy
 ```
 
 ### 2. Install dependencies
