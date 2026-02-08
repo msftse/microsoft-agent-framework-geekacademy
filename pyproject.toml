@@ -5,10 +5,13 @@ description = "Microsoft Agent Framework POC - Multi-Agent Content Pipeline with
 requires-python = ">=3.10"
 dependencies = [
     "agent-framework[azure]",
+    "agent-framework-a2a",
+    "a2a-sdk[http-server]",
     "azure-identity",
     "azure-monitor-opentelemetry",
     "opentelemetry-sdk",
     "python-dotenv",
+    "uvicorn",
 ]
 
 [project.scripts]

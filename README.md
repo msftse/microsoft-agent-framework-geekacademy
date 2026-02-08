@@ -5,7 +5,7 @@
 <h1 align="center">Microsoft Agent Framework - Multi-Agent Content Pipeline</h1>
 
 <p align="center">
-  <strong>A hands-on POC demonstrating multi-agent orchestration with MCP tools and Azure AI Foundry</strong>
+  <strong>A hands-on POC demonstrating multi-agent orchestration with MCP tools, A2A protocol, and Azure AI Foundry</strong>
 </p>
 
 <p align="center">
@@ -14,6 +14,7 @@
   <a href="#prerequisites">Prerequisites</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#project-structure">Project Structure</a> &bull;
+  <a href="#a2a-protocol-demo">A2A Demo</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -23,6 +24,7 @@
   <img src="https://img.shields.io/badge/Azure%20AI-Foundry-0078D4.svg" alt="Azure AI Foundry">
   <img src="https://img.shields.io/badge/Microsoft-Agent%20Framework-5C2D91.svg" alt="Microsoft Agent Framework">
   <img src="https://img.shields.io/badge/MCP-Tools-FF6600.svg" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/A2A-Protocol-8B5CF6.svg" alt="A2A Protocol">
 </p>
 
 ---
@@ -45,6 +47,7 @@ This project demonstrates how to build a **multi-agent content creation pipeline
 - Connecting agents to external tools via **MCP** (Streamable HTTP and stdio)
 - Orchestrating agents in a **sequential workflow** using `SequentialBuilder`
 - Streaming agent outputs with real-time handoff visibility
+- Exposing and consuming agents via the **A2A (Agent-to-Agent) protocol**
 - Setting up **Azure Monitor tracing** for observability in AI Foundry
 
 ---
@@ -180,14 +183,18 @@ Pipeline complete!
 ├── .gitignore            # Protects .env and caches
 ├── pyproject.toml        # Dependencies and project metadata
 ├── run.py                # Entry point — python run.py
-└── pipeline/
+├── pipeline/
+│   ├── __init__.py
+│   ├── config.py          # Loads and validates settings from .env
+│   ├── tracing.py         # Azure Monitor or console tracing setup
+│   ├── tools.py           # MCP tool factories (Learn HTTP + GitHub stdio)
+│   ├── agents.py          # Agent definitions (Researcher, Writer, Reviewer)
+│   ├── workflow.py        # SequentialBuilder pipeline
+│   └── main.py            # Async entry point — wires everything together
+└── a2a_demo/
     ├── __init__.py
-    ├── config.py          # Loads and validates settings from .env
-    ├── tracing.py         # Azure Monitor or console tracing setup
-    ├── tools.py           # MCP tool factories (Learn HTTP + GitHub stdio)
-    ├── agents.py          # Agent definitions (Researcher, Writer, Reviewer)
-    ├── workflow.py        # SequentialBuilder pipeline
-    └── main.py            # Async entry point — wires everything together
+    ├── server.py          # Exposes Reviewer agent as A2A server
+    └── client.py          # Consumes the remote agent via A2A protocol
 ```
 
 ### Key Files Explained
@@ -234,6 +241,58 @@ Leave `APPLICATION_INSIGHTS_CONNECTION_STRING` empty. Spans are printed to stdou
 
 ---
 
+## A2A Protocol Demo
+
+The project also includes a standalone demo of the [Agent-to-Agent (A2A) protocol](https://github.com/google/A2A) — an open standard for inter-agent communication over HTTP/JSON-RPC. The Microsoft Agent Framework supports A2A natively, allowing any agent to be exposed as a remote service or consumed as a remote participant.
+
+### How It Works
+
+```
+Terminal 1 (Server)                    Terminal 2 (Client)
+┌──────────────────────┐              ┌──────────────────────┐
+│  Reviewer Agent      │    A2A       │  A2AAgent            │
+│  (Azure AI Foundry)  │◀──JSON-RPC──│  (framework client)  │
+│                      │              │                      │
+│  Exposed via         │   HTTP       │  Calls remote agent  │
+│  A2AStarletteApp     │──────────── ▶│  like a local one    │
+│  on localhost:9000   │              │                      │
+└──────────────────────┘              └──────────────────────┘
+```
+
+**Server** (`a2a_demo/server.py`):
+- Creates a Reviewer agent using `AzureAIAgentClient`
+- Wraps it in an `AgentExecutor` that bridges agent-framework to the A2A protocol
+- Serves it via `A2AStarletteApplication` + `uvicorn` on `localhost:9000`
+- Publishes an **Agent Card** at `/.well-known/agent-card.json` describing its capabilities
+
+**Client** (`a2a_demo/client.py`):
+- Creates an `A2AAgent(url="http://localhost:9000")` — same interface as any local agent
+- Sends a draft article for review over the A2A protocol
+- Receives the polished article back
+
+### Run the Demo
+
+**Terminal 1** — Start the A2A server:
+```bash
+python -m a2a_demo.server
+```
+
+**Terminal 2** — Run the A2A client:
+```bash
+python -m a2a_demo.client
+```
+
+> The client sends a sample draft article with intentional issues. The remote Reviewer agent reviews and polishes it, returning the result over A2A.
+
+### Why A2A Matters
+
+- **Interoperability** — Agents built with different frameworks can communicate via the standard A2A protocol
+- **Remote execution** — Agents can run on separate machines/services and collaborate over HTTP
+- **Discovery** — Agent Cards let clients discover agent capabilities automatically
+- **Same interface** — `A2AAgent` implements the same protocol as local agents, so it plugs into workflows and tools seamlessly
+
+---
+
 ## Technologies
 
 | Technology | Usage |
@@ -241,6 +300,7 @@ Leave `APPLICATION_INSIGHTS_CONNECTION_STRING` empty. Spans are printed to stdou
 | [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) | Agent creation, workflows, MCP integration |
 | [Azure AI Foundry](https://ai.azure.com) | LLM hosting (gpt-4o), tracing, project management |
 | [Model Context Protocol (MCP)](https://modelcontextprotocol.io) | Tool connectivity — Microsoft Learn & GitHub |
+| [Agent-to-Agent Protocol (A2A)](https://github.com/google/A2A) | Inter-agent communication over HTTP/JSON-RPC |
 | [Azure Monitor / OpenTelemetry](https://learn.microsoft.com/en-us/azure/azure-monitor/) | Distributed tracing and observability |
 | [Azure Identity](https://learn.microsoft.com/en-us/python/api/azure-identity/) | Authentication via Azure CLI credential |
 
