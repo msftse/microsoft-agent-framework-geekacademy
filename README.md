@@ -34,6 +34,7 @@
   <img src="https://img.shields.io/badge/FastAPI-SSE%20Streaming-009688.svg" alt="FastAPI SSE">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED.svg" alt="Docker">
   <img src="https://img.shields.io/badge/CI-Evaluation%20Gate-F5A623.svg" alt="CI Evaluation Gate">
+  <a href="https://github.com/msftse/microsoft-agent-framework-geekacademy/actions/workflows/evaluation.yml"><img src="https://github.com/msftse/microsoft-agent-framework-geekacademy/actions/workflows/evaluation.yml/badge.svg" alt="Evaluation Gate"></a>
 </p>
 
 ---
