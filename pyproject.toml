@@ -19,3 +19,6 @@ dependencies = [
 
 [project.scripts]
 start = "pipeline.main:run"
+
+[tool.setuptools.packages.find]
+include = ["pipeline*", "api*", "a2a_demo*", "evaluation*"]
