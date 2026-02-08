@@ -8,7 +8,6 @@ Run:  python -m evaluation.run
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
@@ -24,8 +23,11 @@ from dotenv import load_dotenv
 DATASET_PATH = Path(__file__).parent / "dataset.jsonl"
 
 
-def get_model_config() -> dict:
-    """Build the model configuration from environment variables."""
+def get_config() -> tuple[dict, str]:
+    """Build the model configuration and project endpoint from environment variables.
+
+    Returns (model_config, project_endpoint).
+    """
     load_dotenv()
 
     project_endpoint = os.environ.get("PROJECT_ENDPOINT", "")
@@ -41,11 +43,12 @@ def get_model_config() -> dict:
 
     deployment = os.environ.get("MODEL_DEPLOYMENT_NAME", "gpt-4o")
 
-    return {
+    model_config = {
         "azure_endpoint": azure_endpoint,
         "azure_deployment": deployment,
         "api_version": "2025-04-01-preview",
     }
+    return model_config, project_endpoint
 
 
 def main() -> None:
@@ -53,10 +56,11 @@ def main() -> None:
     print("Azure AI Foundry Evaluation")
     print(f"{'=' * 60}\n")
 
-    model_config = get_model_config()
+    model_config, project_endpoint = get_config()
     credential = DefaultAzureCredential()
 
     print(f"Endpoint:   {model_config['azure_endpoint']}")
+    print(f"Project:    {project_endpoint}")
     print(f"Model:      {model_config['azure_deployment']}")
     print(f"Dataset:    {DATASET_PATH}")
 
@@ -73,9 +77,10 @@ def main() -> None:
     print(f"\nRunning evaluators: Coherence, Fluency, Relevance")
     print(f"{'─' * 60}\n")
 
-    # Run evaluation
+    # Run evaluation — log results to Azure AI Foundry portal
     result = evaluate(
         data=str(DATASET_PATH),
+        evaluation_name="Content Pipeline Quality",
         evaluators={
             "coherence": coherence,
             "fluency": fluency,
@@ -100,6 +105,8 @@ def main() -> None:
                 },
             },
         },
+        azure_ai_project=project_endpoint,
+        output_path=str(Path(__file__).parent / "results.json"),
     )
 
     # Print summary metrics
@@ -134,16 +141,10 @@ def main() -> None:
     print(f"{'=' * 60}")
     print("Evaluation complete!")
 
-    # Optionally save full results
-    output_path = Path(__file__).parent / "results.json"
-    with open(output_path, "w") as f:
-        json.dump(
-            {"metrics": metrics, "rows": rows},
-            f,
-            indent=2,
-            default=str,
-        )
-    print(f"Full results saved to: {output_path}")
+    # Print link to view results in Azure AI Foundry portal
+    studio_url = result.get("studio_url")
+    if studio_url:
+        print(f"\nView in Foundry: {studio_url}")
 
 
 if __name__ == "__main__":
