@@ -12,28 +12,37 @@ def setup_tracing(settings: Settings) -> None:
     from agent_framework.observability import configure_otel_providers
 
     if settings.app_insights_connection_string:
-        # Production: export traces + logs + metrics to Azure Monitor / AI Foundry
-        from azure.monitor.opentelemetry.exporter import (
-            AzureMonitorLogExporter,
-            AzureMonitorMetricExporter,
-            AzureMonitorTraceExporter,
-        )
+        try:
+            # Production: export traces + logs + metrics to Azure Monitor / AI Foundry
+            from azure.monitor.opentelemetry.exporter import (
+                AzureMonitorLogExporter,
+                AzureMonitorMetricExporter,
+                AzureMonitorTraceExporter,
+            )
 
-        cs = settings.app_insights_connection_string
-        configure_otel_providers(
-            exporters=[
-                AzureMonitorTraceExporter(connection_string=cs),
-                AzureMonitorLogExporter(connection_string=cs),
-                AzureMonitorMetricExporter(connection_string=cs),
-            ],
-        )
-        print(
-            "[tracing] Azure Monitor configured — traces visible in AI Foundry portal"
-        )
-    else:
-        # Local dev: print spans to console
-        os.environ.setdefault("ENABLE_CONSOLE_EXPORTERS", "true")
+            cs = settings.app_insights_connection_string
+            configure_otel_providers(
+                exporters=[
+                    AzureMonitorTraceExporter(connection_string=cs),
+                    AzureMonitorLogExporter(connection_string=cs),
+                    AzureMonitorMetricExporter(connection_string=cs),
+                ],
+            )
+            print(
+                "[tracing] Azure Monitor configured — traces visible in AI Foundry portal"
+            )
+            return
+        except Exception as exc:
+            print(
+                f"[tracing] Azure Monitor setup failed ({exc}), falling back to console"
+            )
+
+    # Local dev / fallback: print spans to console
+    os.environ.setdefault("ENABLE_CONSOLE_EXPORTERS", "true")
+    try:
         configure_otel_providers()
-        print(
-            "[tracing] Console exporter enabled — set APPLICATION_INSIGHTS_CONNECTION_STRING for Azure Monitor"
-        )
+    except Exception:
+        pass  # tracing is optional — don't block the app
+    print(
+        "[tracing] Console exporter enabled — set APPLICATION_INSIGHTS_CONNECTION_STRING for Azure Monitor"
+    )

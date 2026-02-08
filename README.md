@@ -16,6 +16,7 @@
   <a href="#project-structure">Project Structure</a> &bull;
   <a href="#a2a-protocol-demo">A2A Demo</a> &bull;
   <a href="#evaluation">Evaluation</a> &bull;
+  <a href="#api-server">API Server</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -27,6 +28,7 @@
   <img src="https://img.shields.io/badge/MCP-Tools-FF6600.svg" alt="MCP Tools">
   <img src="https://img.shields.io/badge/A2A-Protocol-8B5CF6.svg" alt="A2A Protocol">
   <img src="https://img.shields.io/badge/Azure%20AI-Evaluation-E83E8C.svg" alt="Azure AI Evaluation">
+  <img src="https://img.shields.io/badge/FastAPI-SSE%20Streaming-009688.svg" alt="FastAPI SSE">
 </p>
 
 ---
@@ -51,6 +53,7 @@ This project demonstrates how to build a **multi-agent content creation pipeline
 - Streaming agent outputs with real-time handoff visibility
 - Exposing and consuming agents via the **A2A (Agent-to-Agent) protocol**
 - **Evaluating AI outputs** with Azure AI Foundry built-in evaluators (Coherence, Fluency, Relevance)
+- Serving agents as a **REST API with SSE streaming** using FastAPI
 - Setting up **Azure Monitor tracing** for observability in AI Foundry
 
 ---
@@ -198,10 +201,13 @@ Pipeline complete!
 │   ├── __init__.py
 │   ├── server.py          # Exposes Reviewer agent as A2A server
 │   └── client.py          # Consumes the remote agent via A2A protocol
-└── evaluation/
+├── evaluation/
+│   ├── __init__.py
+│   ├── dataset.jsonl      # 5-sample eval dataset (query + response pairs)
+│   └── run.py             # Runs Coherence, Fluency, Relevance evaluators
+└── api/
     ├── __init__.py
-    ├── dataset.jsonl      # 5-sample eval dataset (query + response pairs)
-    └── run.py             # Runs Coherence, Fluency, Relevance evaluators
+    └── server.py          # FastAPI server with SSE streaming endpoints
 ```
 
 ### Key Files Explained
@@ -374,6 +380,83 @@ View in Foundry: https://ai.azure.com/resource/build/evaluation/<run-id>?wsid=..
 
 ---
 
+## API Server
+
+The project includes a **FastAPI server** that exposes the pipeline and individual agents as REST API endpoints with **Server-Sent Events (SSE)** streaming. This is the foundation for building a frontend UI on top of the agents.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check — returns available agents |
+| `POST` | `/api/pipeline` | Run the full Researcher -> Writer -> Reviewer pipeline |
+| `POST` | `/api/agents/researcher` | Run the Researcher agent individually |
+| `POST` | `/api/agents/writer` | Run the Writer agent individually |
+| `POST` | `/api/agents/reviewer` | Run the Reviewer agent individually |
+
+### Start the Server
+
+```bash
+python -m api.server
+```
+
+The server starts on `http://localhost:8000`. Agents, MCP tools, and the pipeline are initialized once at startup.
+
+### SSE Event Format
+
+All streaming endpoints return Server-Sent Events with three event types:
+
+```
+event: agent
+data: {"agent": "Researcher"}     # Agent started working
+
+event: text
+data: {"agent": "Researcher", "text": "Azure Functions is..."}  # Text token
+
+event: done
+data: {"status": "complete"}      # Stream finished
+```
+
+### Example Requests
+
+**Run the full pipeline:**
+```bash
+curl -N -X POST http://localhost:8000/api/pipeline \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "Azure Container Apps"}'
+```
+
+**Run a single agent:**
+```bash
+curl -N -X POST http://localhost:8000/api/agents/writer \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Write a 3-sentence intro about Azure Functions"}'
+```
+
+### Frontend Integration
+
+The SSE format is designed for easy frontend consumption using the standard `EventSource` API or `fetch` with streaming:
+
+```javascript
+const response = await fetch("/api/pipeline", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ topic: "Azure Functions" }),
+});
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  // Parse SSE events and update UI
+  console.log(decoder.decode(value));
+}
+```
+
+---
+
 ## Technologies
 
 | Technology | Usage |
@@ -385,6 +468,8 @@ View in Foundry: https://ai.azure.com/resource/build/evaluation/<run-id>?wsid=..
 | [Azure Monitor / OpenTelemetry](https://learn.microsoft.com/en-us/azure/azure-monitor/) | Distributed tracing and observability |
 | [Azure AI Evaluation](https://learn.microsoft.com/en-us/python/api/azure-ai-evaluation/) | Quality scoring — Coherence, Fluency, Relevance evaluators |
 | [Azure Identity](https://learn.microsoft.com/en-us/python/api/azure-identity/) | Authentication via Azure CLI credential |
+| [FastAPI](https://fastapi.tiangolo.com) | REST API server with SSE streaming endpoints |
+| [SSE-Starlette](https://github.com/sysid/sse-starlette) | Server-Sent Events support for real-time streaming |
 
 ---
 
