@@ -15,6 +15,7 @@
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#project-structure">Project Structure</a> &bull;
   <a href="#a2a-protocol-demo">A2A Demo</a> &bull;
+  <a href="#evaluation">Evaluation</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -25,6 +26,7 @@
   <img src="https://img.shields.io/badge/Microsoft-Agent%20Framework-5C2D91.svg" alt="Microsoft Agent Framework">
   <img src="https://img.shields.io/badge/MCP-Tools-FF6600.svg" alt="MCP Tools">
   <img src="https://img.shields.io/badge/A2A-Protocol-8B5CF6.svg" alt="A2A Protocol">
+  <img src="https://img.shields.io/badge/Azure%20AI-Evaluation-E83E8C.svg" alt="Azure AI Evaluation">
 </p>
 
 ---
@@ -48,6 +50,7 @@ This project demonstrates how to build a **multi-agent content creation pipeline
 - Orchestrating agents in a **sequential workflow** using `SequentialBuilder`
 - Streaming agent outputs with real-time handoff visibility
 - Exposing and consuming agents via the **A2A (Agent-to-Agent) protocol**
+- **Evaluating AI outputs** with Azure AI Foundry built-in evaluators (Coherence, Fluency, Relevance)
 - Setting up **Azure Monitor tracing** for observability in AI Foundry
 
 ---
@@ -191,10 +194,14 @@ Pipeline complete!
 │   ├── agents.py          # Agent definitions (Researcher, Writer, Reviewer)
 │   ├── workflow.py        # SequentialBuilder pipeline
 │   └── main.py            # Async entry point — wires everything together
-└── a2a_demo/
+├── a2a_demo/
+│   ├── __init__.py
+│   ├── server.py          # Exposes Reviewer agent as A2A server
+│   └── client.py          # Consumes the remote agent via A2A protocol
+└── evaluation/
     ├── __init__.py
-    ├── server.py          # Exposes Reviewer agent as A2A server
-    └── client.py          # Consumes the remote agent via A2A protocol
+    ├── dataset.jsonl      # 5-sample eval dataset (query + response pairs)
+    └── run.py             # Runs Coherence, Fluency, Relevance evaluators
 ```
 
 ### Key Files Explained
@@ -293,6 +300,78 @@ python -m a2a_demo.client
 
 ---
 
+## Evaluation
+
+The project includes an evaluation suite that measures the quality of pipeline outputs using [Azure AI Foundry built-in evaluators](https://learn.microsoft.com/en-us/azure/ai-studio/how-to/evaluate-generative-ai-app). This gives you quantitative scores to validate that your agents produce high-quality content.
+
+### Evaluators
+
+| Evaluator | What It Measures | Scale |
+|-----------|-----------------|-------|
+| **Coherence** | Logical flow and readability of the article | 1-5 |
+| **Fluency** | Language quality — grammar, vocabulary, sentence structure | 1-5 |
+| **Relevance** | How well the response addresses the original query | 1-5 |
+
+### Dataset
+
+The evaluation runs against `evaluation/dataset.jsonl` — a JSONL file where each line contains:
+
+```json
+{"query": "Write a technical article about ...", "response": "# Article Title\n\n..."}
+```
+
+The included dataset has 5 samples covering Azure Functions, AKS, Cosmos DB, Microsoft Agent Framework, and GitHub Actions CI/CD. The last sample is intentionally shorter to demonstrate score variation.
+
+### Run the Evaluation
+
+```bash
+python -m evaluation.run
+```
+
+Example output:
+
+```
+============================================================
+Azure AI Foundry Evaluation
+============================================================
+
+Endpoint:   https://<your-resource>.services.ai.azure.com
+Model:      gpt-4o
+Dataset:    evaluation/dataset.jsonl
+Samples:    5
+
+Running evaluators: Coherence, Fluency, Relevance
+────────────────────────────────────────────────────────────
+
+============================================================
+RESULTS SUMMARY
+============================================================
+
+  coherence.coherence                      4.60
+  fluency.fluency                          4.00
+  relevance.relevance                      4.80
+
+────────────────────────────────────────────────────────────
+PER-SAMPLE SCORES
+────────────────────────────────────────────────────────────
+
+  [1] Write a technical article about Azure Functions serverle...
+      Coherence=5  Fluency=4  Relevance=5
+
+  [2] Write a technical article about Azure Kubernetes Service...
+      Coherence=5  Fluency=4  Relevance=5
+
+  ...
+
+============================================================
+Evaluation complete!
+Full results saved to: evaluation/results.json
+```
+
+> `evaluation/results.json` is gitignored — it contains full per-sample details and is regenerated on each run.
+
+---
+
 ## Technologies
 
 | Technology | Usage |
@@ -302,6 +381,7 @@ python -m a2a_demo.client
 | [Model Context Protocol (MCP)](https://modelcontextprotocol.io) | Tool connectivity — Microsoft Learn & GitHub |
 | [Agent-to-Agent Protocol (A2A)](https://github.com/google/A2A) | Inter-agent communication over HTTP/JSON-RPC |
 | [Azure Monitor / OpenTelemetry](https://learn.microsoft.com/en-us/azure/azure-monitor/) | Distributed tracing and observability |
+| [Azure AI Evaluation](https://learn.microsoft.com/en-us/python/api/azure-ai-evaluation/) | Quality scoring — Coherence, Fluency, Relevance evaluators |
 | [Azure Identity](https://learn.microsoft.com/en-us/python/api/azure-identity/) | Authentication via Azure CLI credential |
 
 ---

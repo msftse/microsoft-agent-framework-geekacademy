@@ -12,6 +12,7 @@ dependencies = [
     "opentelemetry-sdk",
     "python-dotenv",
     "uvicorn",
+    "azure-ai-evaluation",
 ]
 
 [project.scripts]
