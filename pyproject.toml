@@ -1,0 +1,15 @@
+[project]
+name = "geektime-maf-poc"
+version = "0.1.0"
+description = "Microsoft Agent Framework POC - Multi-Agent Content Pipeline with MCP"
+requires-python = ">=3.10"
+dependencies = [
+    "agent-framework[azure]",
+    "azure-identity",
+    "azure-monitor-opentelemetry",
+    "opentelemetry-sdk",
+    "python-dotenv",
+]
+
+[project.scripts]
+start = "pipeline.main:run"
