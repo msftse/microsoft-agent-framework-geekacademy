@@ -336,6 +336,7 @@ Azure AI Foundry Evaluation
 ============================================================
 
 Endpoint:   https://<your-resource>.services.ai.azure.com
+Project:    https://<your-resource>.services.ai.azure.com/api/projects/<your-project>
 Model:      gpt-4o
 Dataset:    evaluation/dataset.jsonl
 Samples:    5
@@ -348,7 +349,7 @@ RESULTS SUMMARY
 ============================================================
 
   coherence.coherence                      4.60
-  fluency.fluency                          4.00
+  fluency.fluency                          4.20
   relevance.relevance                      4.80
 
 ────────────────────────────────────────────────────────────
@@ -356,7 +357,7 @@ PER-SAMPLE SCORES
 ────────────────────────────────────────────────────────────
 
   [1] Write a technical article about Azure Functions serverle...
-      Coherence=5  Fluency=4  Relevance=5
+      Coherence=5  Fluency=5  Relevance=5
 
   [2] Write a technical article about Azure Kubernetes Service...
       Coherence=5  Fluency=4  Relevance=5
@@ -365,10 +366,11 @@ PER-SAMPLE SCORES
 
 ============================================================
 Evaluation complete!
-Full results saved to: evaluation/results.json
+
+View in Foundry: https://ai.azure.com/resource/build/evaluation/<run-id>?wsid=...
 ```
 
-> `evaluation/results.json` is gitignored — it contains full per-sample details and is regenerated on each run.
+> Results are automatically logged to the **Evaluation** tab in Azure AI Foundry. Click the `View in Foundry` link to see detailed metrics, per-sample scores, and visualizations in the portal.
 
 ---
 
