@@ -17,6 +17,7 @@
   <a href="#a2a-protocol-demo">A2A Demo</a> &bull;
   <a href="#evaluation">Evaluation</a> &bull;
   <a href="#api-server">API Server</a> &bull;
+  <a href="#frontend">Frontend</a> &bull;
   <a href="#tracing--observability">Tracing</a>
 </p>
 
@@ -205,9 +206,11 @@ Pipeline complete!
 │   ├── __init__.py
 │   ├── dataset.jsonl      # 5-sample eval dataset (query + response pairs)
 │   └── run.py             # Runs Coherence, Fluency, Relevance evaluators
-└── api/
-    ├── __init__.py
-    └── server.py          # FastAPI server with SSE streaming endpoints
+├── api/
+│   ├── __init__.py
+│   └── server.py          # FastAPI server with SSE streaming endpoints
+└── frontend/
+    └── index.html         # Single-page chat UI (served at localhost:8000)
 ```
 
 ### Key Files Explained
@@ -461,6 +464,30 @@ while (true) {
   console.log(decoder.decode(value));
 }
 ```
+
+---
+
+## Frontend
+
+The project includes a **single-page chat UI** built as one self-contained HTML file — no build tools or npm required. It's served automatically by the FastAPI server.
+
+### Features
+
+- **Pipeline mode** — enter a topic and watch Researcher, Writer, and Reviewer work sequentially with live agent handoff indicators
+- **Single Agent mode** — pick an agent (Researcher, Writer, or Reviewer) and chat with it directly
+- Real-time SSE streaming with color-coded agent labels
+- Dark theme, responsive layout
+
+### Usage
+
+Start the API server and open the browser:
+
+```bash
+python3 -m api.server
+# Open http://localhost:8000 in your browser
+```
+
+The frontend is served at the root (`/`). Switch between Pipeline and Single Agent modes using the toggle in the header.
 
 ---
 

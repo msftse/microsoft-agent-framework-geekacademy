@@ -8,10 +8,13 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -208,6 +211,22 @@ async def run_agent(agent_name: str, request: MessageRequest):
             detail=f"Agent '{agent_name}' not found. Available: {list(state.agents.keys())}",
         )
     return EventSourceResponse(stream_agent(agent, request.message, agent_name.lower()))
+
+
+# ---------------------------------------------------------------------------
+# Frontend — serve static files
+# ---------------------------------------------------------------------------
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+
+
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend single-page app."""
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
 # ---------------------------------------------------------------------------
