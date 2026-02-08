@@ -397,7 +397,7 @@ The project includes a **FastAPI server** that exposes the pipeline and individu
 ### Start the Server
 
 ```bash
-python -m api.server
+python3 -m api.server
 ```
 
 The server starts on `http://localhost:8000`. Agents, MCP tools, and the pipeline are initialized once at startup.
@@ -419,6 +419,11 @@ data: {"status": "complete"}      # Stream finished
 
 ### Example Requests
 
+**Health check:**
+```bash
+curl http://localhost:8000/api/health
+```
+
 **Run the full pipeline:**
 ```bash
 curl -N -X POST http://localhost:8000/api/pipeline \
@@ -432,6 +437,8 @@ curl -N -X POST http://localhost:8000/api/agents/writer \
   -H "Content-Type: application/json" \
   -d '{"message": "Write a 3-sentence intro about Azure Functions"}'
 ```
+
+> **Tip:** The `-N` flag disables curl's output buffering so you see SSE events in real time.
 
 ### Frontend Integration
 
