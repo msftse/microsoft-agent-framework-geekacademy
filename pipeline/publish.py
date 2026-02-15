@@ -1,223 +1,155 @@
-"""Publish the content pipeline as a workflow agent in Azure AI Foundry.
+"""Publish content pipeline to Azure AI Foundry.
 
-Usage:
-    python -m pipeline.publish              # register + publish
-    python -m pipeline.publish --register   # register workflow agent only
-    python -m pipeline.publish --verify     # verify published endpoint
+Usage:  python -m pipeline.publish [--register | --verify]
 """
 
 from __future__ import annotations
-
-import argparse
-import asyncio
-import os
-import sys
+import argparse, asyncio, os, sys
 from pathlib import Path
-
 import httpx
 from azure.identity import DefaultAzureCredential
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import WorkflowAgentDefinition
 from dotenv import load_dotenv
-
 from pipeline.config import load_settings
 
-YAML_PATH = Path(__file__).parent / "content-pipeline.yaml"
-WORKFLOW_AGENT_NAME = "ContentPipeline"
-APP_NAME = "content-pipeline-app"
-DEPLOY_NAME = "content-pipeline-deployment"
-ARM_API = "2025-10-01-preview"
-AI_API = "2025-11-15-preview"
-
+YAML = Path(__file__).parent / "content-pipeline.yaml"
+AGENT, APP, DEPLOY = (
+    "ContentPipeline",
+    "content-pipeline-app",
+    "content-pipeline-deployment",
+)
+ARM_V, AI_V = "2025-10-01-preview", "2025-11-15-preview"
 _cred = DefaultAzureCredential()
 
 
-def _token(scope: str) -> str:
-    return _cred.get_token(scope).token
-
-
-def _env() -> dict[str, str]:
-    """Load and validate publish env vars."""
+def _env():
     load_dotenv()
-    settings = load_settings()
-    endpoint = settings.project_endpoint.rstrip("/")
-    parts = endpoint.split("/")
-    host = parts[2]
-
-    env = {
-        "sub": os.environ.get("AZURE_SUBSCRIPTION_ID", ""),
-        "rg": os.environ.get("AZURE_RESOURCE_GROUP", ""),
-        "account": os.environ.get("AZURE_ACCOUNT_NAME") or host.split(".")[0],
-        "project": os.environ.get("AZURE_PROJECT_NAME") or parts[-1],
-        "endpoint": endpoint,
-    }
-    if not env["sub"] or not env["rg"]:
-        sys.exit(
-            "ERROR: AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP required. See .env.example"
-        )
-    return env
+    ep = load_settings().project_endpoint.rstrip("/")
+    h = ep.split("/")[2]
+    e = dict(
+        sub=os.environ.get("AZURE_SUBSCRIPTION_ID", ""),
+        rg=os.environ.get("AZURE_RESOURCE_GROUP", ""),
+        acct=os.environ.get("AZURE_ACCOUNT_NAME") or h.split(".")[0],
+        proj=os.environ.get("AZURE_PROJECT_NAME") or ep.split("/")[-1],
+        ep=ep,
+    )
+    if not e["sub"] or not e["rg"]:
+        sys.exit("AZURE_SUBSCRIPTION_ID and AZURE_RESOURCE_GROUP required.")
+    return e
 
 
-def _arm_base(env: dict[str, str]) -> str:
+def _arm(e):
     return (
-        f"https://management.azure.com/subscriptions/{env['sub']}"
-        f"/resourceGroups/{env['rg']}/providers/Microsoft.CognitiveServices"
-        f"/accounts/{env['account']}/projects/{env['project']}"
+        f"https://management.azure.com/subscriptions/{e['sub']}/resourceGroups/{e['rg']}"
+        f"/providers/Microsoft.CognitiveServices/accounts/{e['acct']}/projects/{e['proj']}"
     )
 
 
-def _ai_base(env: dict[str, str]) -> str:
-    return (
-        f"https://{env['account']}.services.ai.azure.com/api/projects/{env['project']}"
+def _ai(e):
+    return f"https://{e['acct']}.services.ai.azure.com/api/projects/{e['proj']}"
+
+
+async def register(env):
+    v = AIProjectClient(endpoint=env["ep"], credential=_cred).agents.create_version(
+        agent_name=AGENT, definition=WorkflowAgentDefinition(workflow=YAML.read_text())
     )
+    print(f"Registered {v.name}:{v.version}")
+    return f"{v.name}:{v.version}"
 
 
-# -- Step 1: Register workflow agent -----------------------------------------
-
-
-async def register(env: dict[str, str]) -> str:
-    yaml_content = YAML_PATH.read_text()
-    client = AIProjectClient(endpoint=env["endpoint"], credential=_cred)
-
-    print(f"Registering workflow agent '{WORKFLOW_AGENT_NAME}'...")
-    v = client.agents.create_version(
-        agent_name=WORKFLOW_AGENT_NAME,
-        definition=WorkflowAgentDefinition(workflow=yaml_content),
-    )
-    vid = f"{v.name}:{v.version}"
-    print(f"  -> {vid} (kind={v.definition.kind})")
-    return vid
-
-
-# -- Step 2: Publish as Agent Application ------------------------------------
-
-
-async def publish(env: dict[str, str], version_id: str) -> str:
-    base = _arm_base(env)
-    headers = {
-        "Authorization": f"Bearer {_token('https://management.azure.com/.default')}",
+async def publish(env, vid):
+    name, ver = vid.rsplit(":", 1) if ":" in vid else (AGENT, "1")
+    h = {
+        "Authorization": f"Bearer {_cred.get_token('https://management.azure.com/.default').token}",
         "Content-Type": "application/json",
     }
-    agent_name, ver = (
-        version_id.rsplit(":", 1) if ":" in version_id else (WORKFLOW_AGENT_NAME, "1")
-    )
-
+    b = _arm(env)
     async with httpx.AsyncClient(timeout=60) as c:
-        # Create application
-        print(f"Creating application '{APP_NAME}'...")
-        r = await c.put(
-            f"{base}/applications/{APP_NAME}?api-version={ARM_API}",
-            headers=headers,
-            json={
-                "properties": {
-                    "displayName": "Content Pipeline",
-                    "agents": [{"agentName": agent_name}],
-                }
-            },
-        )
-        if r.status_code not in (200, 201):
-            sys.exit(f"  ERROR {r.status_code}: {r.text[:300]}")
-        print(f"  -> {r.json().get('properties', {}).get('baseUrl', 'ok')}")
-
-        # Create deployment
-        print(f"Creating deployment '{DEPLOY_NAME}'...")
-        r = await c.put(
-            f"{base}/applications/{APP_NAME}/agentdeployments/{DEPLOY_NAME}?api-version={ARM_API}",
-            headers=headers,
-            json={
-                "properties": {
-                    "displayName": "Content Pipeline Deployment",
-                    "deploymentType": "Managed",
-                    "protocols": [{"protocol": "responses", "version": "1.0"}],
-                    "agents": [{"agentName": agent_name, "agentVersion": ver}],
-                }
-            },
-        )
-        if r.status_code not in (200, 201):
-            sys.exit(f"  ERROR {r.status_code}: {r.text[:300]}")
-        print("  -> ok")
-
-    url = f"{_ai_base(env)}/applications/{APP_NAME}/protocols/openai/responses?api-version={AI_API}"
-    print(f"\nEndpoint: {url}")
-    return url
+        for tag, url, body in [
+            (
+                "App",
+                f"{b}/applications/{APP}?api-version={ARM_V}",
+                {
+                    "properties": {
+                        "displayName": "Content Pipeline",
+                        "agents": [{"agentName": name}],
+                    }
+                },
+            ),
+            (
+                "Deploy",
+                f"{b}/applications/{APP}/agentdeployments/{DEPLOY}?api-version={ARM_V}",
+                {
+                    "properties": {
+                        "displayName": "Content Pipeline Deployment",
+                        "deploymentType": "Managed",
+                        "protocols": [{"protocol": "responses", "version": "1.0"}],
+                        "agents": [{"agentName": name, "agentVersion": ver}],
+                    }
+                },
+            ),
+        ]:
+            r = await c.put(url, headers=h, json=body)
+            if r.status_code not in (200, 201):
+                sys.exit(f"{tag} ERROR {r.status_code}: {r.text[:300]}")
+    print(
+        f"Published -> {_ai(env)}/applications/{APP}/protocols/openai/responses?api-version={AI_V}"
+    )
 
 
-# -- Step 3: Verify ----------------------------------------------------------
-
-
-async def verify(env: dict[str, str]) -> None:
-    """Invoke workflow via project-level API (app endpoint is stateless, workflows need conversations)."""
-    base = _ai_base(env)
-    headers = {
-        "Authorization": f"Bearer {_token('https://ai.azure.com/.default')}",
+async def verify(env):
+    h = {
+        "Authorization": f"Bearer {_cred.get_token('https://ai.azure.com/.default').token}",
         "Content-Type": "application/json",
     }
-
+    b = _ai(env)
     async with httpx.AsyncClient(timeout=300) as c:
         r = await c.post(
-            f"{base}/openai/conversations?api-version={AI_API}",
-            headers=headers,
-            json={},
+            f"{b}/openai/conversations?api-version={AI_V}", headers=h, json={}
         )
         if r.status_code != 200:
             return print(f"ERROR creating conversation: {r.status_code}")
-        conv_id = r.json()["id"]
-
-        print(f"Invoking '{WORKFLOW_AGENT_NAME}' (conv={conv_id[:20]}...)...")
+        conv = r.json()["id"]
+        print(f"Invoking '{AGENT}'...")
         r = await c.post(
-            f"{base}/openai/responses?api-version={AI_API}",
-            headers=headers,
+            f"{b}/openai/responses?api-version={AI_V}",
+            headers=h,
             json={
-                "input": "Say hello and introduce yourself briefly",
-                "agent": {"name": WORKFLOW_AGENT_NAME, "type": "agent_reference"},
+                "input": "Say hello briefly",
+                "agent": {"name": AGENT, "type": "agent_reference"},
                 "store": True,
-                "conversation": {"id": conv_id},
+                "conversation": {"id": conv},
             },
         )
-
     if r.status_code != 200:
         return print(f"ERROR {r.status_code}: {r.text[:300]}")
-
     data = r.json()
-    outputs = data.get("output", [])
-    print(f"OK — status={data.get('status')}, outputs={len(outputs)}")
-    for o in outputs:
-        t, agent = (
-            o.get("type"),
-            o.get("created_by", {}).get("agent", {}).get("name", "?"),
-        )
-        if t == "message":
+    print(f"OK — status={data.get('status')}, outputs={len(data.get('output', []))}")
+    for o in data.get("output", []):
+        a = o.get("created_by", {}).get("agent", {}).get("name", "?")
+        if o["type"] == "message":
             for ct in o.get("content", []):
                 if ct.get("type") == "output_text":
-                    print(f"  [{agent}] {ct['text'][:200]}")
-        elif t == "workflow_action":
-            print(f"  [workflow] {o.get('action_id')} status={o.get('status')}")
+                    print(f"  [{a}] {ct['text'][:200]}")
+        elif o["type"] == "workflow_action":
+            print(f"  [workflow] {o['action_id']} status={o['status']}")
 
 
-# -- Main --------------------------------------------------------------------
-
-
-async def main() -> None:
+async def main():
     ap = argparse.ArgumentParser(
         description="Publish content pipeline to Azure AI Foundry"
     )
-    ap.add_argument(
-        "--register", action="store_true", help="Register workflow agent only"
-    )
-    ap.add_argument("--verify", action="store_true", help="Verify published endpoint")
+    ap.add_argument("--register", action="store_true", help="Register only")
+    ap.add_argument("--verify", action="store_true", help="Verify endpoint")
     args = ap.parse_args()
-
     env = _env()
-
     if args.verify:
         return await verify(env)
-
     vid = await register(env)
-    if args.register:
-        return print("Done (register only).")
-
-    await publish(env, vid)
-    print(f"\nVerify: python -m pipeline.publish --verify")
+    if not args.register:
+        await publish(env, vid)
+        print("Verify: python -m pipeline.publish --verify")
 
 
 if __name__ == "__main__":
