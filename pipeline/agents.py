@@ -33,11 +33,30 @@ async def create_researcher(
 ):
     """Researcher agent — uses MCP tools to gather information.
 
-    MCP tools cannot be passed directly to provider.create_agent() because
-    they are runtime-only (not stored on the Azure service).  We create the
-    agent without them, then attach MCP tools to the local Agent wrapper.
+    MCP tools are runtime-only objects that can't be passed through
+    normalize_tools().  We connect them, extract their discovered functions,
+    and pass those as regular tool defs to register on the agent definition.
+    The raw MCPTool objects are then attached to the local Agent wrapper
+    so the framework can dispatch calls at runtime.
     """
-    agent_tools = []
+    from agent_framework._mcp import MCPTool
+
+    mcp_tools: list[MCPTool] = []
+    agent_tools: list = []
+
+    if tools:
+        for t in tools:
+            if isinstance(t, MCPTool):
+                mcp_tools.append(t)
+            else:
+                agent_tools.append(t)
+
+    # Discover MCP functions and include them in the agent definition
+    for mcp_tool in mcp_tools:
+        if not mcp_tool.is_connected:
+            await mcp_tool.connect()
+        agent_tools.extend(mcp_tool.functions)
+
     if memory_store_name:
         agent_tools.append(_memory_tool(memory_store_name))
 
@@ -47,11 +66,9 @@ async def create_researcher(
         instructions=load_prompt("researcher"),
         tools=agent_tools or None,
     )
-    # Attach MCP tools to the local Agent wrapper for runtime use
-    if tools:
-        from agent_framework._mcp import MCPTool
-
-        agent.mcp_tools = [t for t in tools if isinstance(t, MCPTool)]
+    # Attach MCP tools to the local Agent wrapper for runtime dispatch
+    if mcp_tools:
+        agent.mcp_tools = mcp_tools
     return agent
 
 
