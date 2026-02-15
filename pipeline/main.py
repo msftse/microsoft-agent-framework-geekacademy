@@ -1,4 +1,8 @@
-"""Entry point — wires config, tracing, tools, agents, and workflow together."""
+"""Entry point — wires config, tracing, tools, agents, and workflow together.
+
+Uses the new Azure AI Foundry Agent SDK.  Agents are registered as persistent
+resources in the Foundry project and are visible in the portal.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import asyncio
 import sys
 
 from azure.identity.aio import AzureCliCredential
+from agent_framework import AgentResponseUpdate
 from agent_framework.azure import AzureAIAgentClient
 
 from pipeline.config import load_settings
@@ -13,6 +18,7 @@ from pipeline.tracing import setup_tracing
 from pipeline.tools import create_learn_tool, create_github_tool
 from pipeline.agents import create_researcher, create_writer, create_reviewer
 from pipeline.workflow import build_pipeline
+from prompts import load_prompt
 
 DEFAULT_TOPIC = "Azure Functions serverless computing"
 
@@ -22,13 +28,13 @@ async def main() -> None:
     settings = load_settings()
     setup_tracing(settings)
 
-    # 2. Create Azure AI Foundry chat client
+    # 2. Create Azure AI Foundry agent client (uses async credential)
     credential = AzureCliCredential()
 
     chat_client = AzureAIAgentClient(
         project_endpoint=settings.project_endpoint,
         model_deployment_name=settings.model_deployment,
-        credential=credential,
+        async_credential=credential,
     )
 
     # 3. Start MCP tool servers
@@ -36,7 +42,7 @@ async def main() -> None:
     github_tool = create_github_tool(settings.github_token)
 
     async with learn_tool, github_tool:
-        # 4. Create agents (researcher gets both MCP tools)
+        # 4. Create agents — each is registered in AI Foundry
         researcher = create_researcher(chat_client, tools=[learn_tool, github_tool])
         writer = create_writer(chat_client)
         reviewer = create_reviewer(chat_client)
@@ -51,28 +57,24 @@ async def main() -> None:
         print(f"{'=' * 60}\n")
 
         # 7. Stream output, showing agent handoffs
-        message = f"Write a technical article about: {topic}"
-        current_agent = None
+        message = load_prompt("pipeline_message", topic=topic)
+        last_executor_id = None
 
         async for event in pipeline.run_stream(message):
-            executor_id = getattr(event, "executor_id", None)
+            # Agent handoff: show when a new executor starts
+            if event.type == "executor_invoked":
+                executor_id = event.executor_id
+                if executor_id not in ("input-conversation", "end"):
+                    if last_executor_id is not None:
+                        print(f"\n{'-' * 40}")
+                    print(f"\n[{executor_id}]:")
+                    last_executor_id = executor_id
 
-            # Show when each agent starts working
-            if type(event).__name__ == "ExecutorInvokedEvent" and executor_id not in (
-                "input-conversation",
-                "end",
-            ):
-                if current_agent:
-                    print(f"\n{'-' * 40}")
-                print(f"\n[{executor_id}]:")
-                current_agent = executor_id
-
-            # Stream text tokens from agents
-            if type(event).__name__ == "AgentRunUpdateEvent":
-                data = getattr(event, "data", None)
-                text = getattr(data, "text", None) if data else None
+            # Streaming text tokens from agents
+            if event.type == "output" and isinstance(event.data, AgentResponseUpdate):
+                text = str(event.data)
                 if text:
-                    print(str(text), end="", flush=True)
+                    print(text, end="", flush=True)
 
         print(f"\n\n{'=' * 60}")
         print("Pipeline complete!")

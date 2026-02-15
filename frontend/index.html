@@ -15,8 +15,14 @@
       --accent: #58a6ff;
       --accent-hover: #79b8ff;
       --researcher: #f0883e;
+      --researcher-bg: rgba(240,136,62,0.08);
+      --researcher-border: rgba(240,136,62,0.35);
       --writer: #a371f7;
+      --writer-bg: rgba(163,113,247,0.08);
+      --writer-border: rgba(163,113,247,0.35);
       --reviewer: #3fb950;
+      --reviewer-bg: rgba(63,185,80,0.08);
+      --reviewer-border: rgba(63,185,80,0.35);
       --danger: #f85149;
     }
 
@@ -88,6 +94,86 @@
       margin: 0 auto;
     }
 
+    /* ---- Pipeline progress indicator ---- */
+    .pipeline-progress {
+      display: none;
+      padding: 16px 20px 0;
+      flex-shrink: 0;
+    }
+
+    .pipeline-progress.visible { display: block; }
+
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .progress-step .step-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .progress-step.active {
+      color: var(--text);
+    }
+
+    .progress-step.active .step-icon {
+      border-color: var(--step-color);
+      background: var(--step-bg);
+      animation: pulse-ring 1.5s ease-in-out infinite;
+    }
+
+    .progress-step.completed .step-icon {
+      border-color: var(--step-color);
+      background: var(--step-color);
+      color: #fff;
+    }
+
+    .progress-step.completed {
+      color: var(--text-muted);
+    }
+
+    .progress-connector {
+      width: 40px;
+      height: 2px;
+      background: var(--border);
+      transition: background 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .progress-connector.filled {
+      background: var(--text-muted);
+    }
+
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 var(--step-bg); }
+      50% { box-shadow: 0 0 0 6px transparent; }
+    }
+
     /* ---- Messages area ---- */
     #messages {
       flex: 1;
@@ -112,47 +198,128 @@
       max-width: 70%;
     }
 
+    /* ---- Agent bubble (one per agent) ---- */
     .msg-agent {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 14px 18px;
-      overflow: hidden;
+      padding: 0;
+      overflow: visible;
+      border-left: 3px solid var(--border);
+      animation: bubble-in 0.3s ease-out;
+      transition: border-color 0.3s ease;
     }
 
-    .agent-label {
-      font-size: 12px;
+    .msg-agent.researcher {
+      border-left-color: var(--researcher);
+      background: var(--researcher-bg);
+      border-color: var(--researcher-border);
+      border-left-color: var(--researcher);
+    }
+
+    .msg-agent.writer {
+      border-left-color: var(--writer);
+      background: var(--writer-bg);
+      border-color: var(--writer-border);
+      border-left-color: var(--writer);
+    }
+
+    .msg-agent.reviewer {
+      border-left-color: var(--reviewer);
+      background: var(--reviewer-bg);
+      border-color: var(--reviewer-border);
+      border-left-color: var(--reviewer);
+    }
+
+    @keyframes bubble-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Agent bubble header */
+    .agent-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px 8px;
+    }
+
+    .agent-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .agent-avatar.researcher { background: rgba(240,136,62,0.18); }
+    .agent-avatar.writer { background: rgba(163,113,247,0.18); }
+    .agent-avatar.reviewer { background: rgba(63,185,80,0.18); }
+
+    .agent-name {
+      font-size: 13px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
 
-    .agent-label .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      display: inline-block;
+    .agent-name.researcher { color: var(--researcher); }
+    .agent-name.writer { color: var(--writer); }
+    .agent-name.reviewer { color: var(--reviewer); }
+
+    .agent-status-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+      margin-left: auto;
+      transition: all 0.3s ease;
     }
 
-    .agent-label.researcher { color: var(--researcher); }
-    .agent-label.researcher .dot { background: var(--researcher); }
-    .agent-label.writer { color: var(--writer); }
-    .agent-label.writer .dot { background: var(--writer); }
-    .agent-label.reviewer { color: var(--reviewer); }
-    .agent-label.reviewer .dot { background: var(--reviewer); }
+    .agent-status-badge.streaming {
+      background: rgba(88,166,255,0.15);
+      color: var(--accent);
+    }
+
+    .agent-status-badge.done {
+      background: rgba(63,185,80,0.15);
+      color: var(--reviewer);
+    }
+
+    /* Agent bubble body */
+    .agent-body {
+      padding: 0 16px 14px;
+    }
 
     .agent-text {
       white-space: pre-wrap;
       word-wrap: break-word;
+      line-height: 1.65;
     }
 
-    .agent-divider {
-      border: none;
-      border-top: 1px dashed var(--border);
-      margin: 12px 0;
+    /* Blinking cursor */
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--accent);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink-cursor 0.8s step-end infinite;
+    }
+
+    @keyframes blink-cursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
     }
 
     .status-msg {
@@ -298,6 +465,26 @@
   </header>
 
   <main>
+    <!-- Pipeline progress indicator -->
+    <div class="pipeline-progress" id="pipeline-progress">
+      <div class="progress-steps">
+        <div class="progress-step" data-step="researcher" style="--step-color: var(--researcher); --step-bg: var(--researcher-bg);">
+          <div class="step-icon">&#128270;</div>
+          <span>Researcher</span>
+        </div>
+        <div class="progress-connector" data-after="researcher"></div>
+        <div class="progress-step" data-step="writer" style="--step-color: var(--writer); --step-bg: var(--writer-bg);">
+          <div class="step-icon">&#9997;</div>
+          <span>Writer</span>
+        </div>
+        <div class="progress-connector" data-after="writer"></div>
+        <div class="progress-step" data-step="reviewer" style="--step-color: var(--reviewer); --step-bg: var(--reviewer-bg);">
+          <div class="step-icon">&#9989;</div>
+          <span>Reviewer</span>
+        </div>
+      </div>
+    </div>
+
     <div id="messages">
       <div class="welcome" id="welcome">
         <h2>Multi-Agent Content Pipeline</h2>
@@ -339,10 +526,84 @@
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("send-btn");
     const agentSelector = document.getElementById("agent-selector");
+    const pipelineProgress = document.getElementById("pipeline-progress");
+
+    const AGENT_ICONS = {
+      researcher: "\u{1F50D}",
+      writer: "\u270D\uFE0F",
+      reviewer: "\u2705",
+    };
+
+    const AGENT_ORDER = ["researcher", "writer", "reviewer"];
 
     let mode = "pipeline";
     let selectedAgent = "researcher";
     let isStreaming = false;
+
+    // ---- TextStreamer: queues chunks and renders word-by-word with delay ----
+    class TextStreamer {
+      constructor(textEl, cursorEl, opts = {}) {
+        this.textEl = textEl;
+        this.cursorEl = cursorEl;
+        this.queue = [];          // queued text chunks
+        this.rendering = false;
+        this.done = false;        // SSE stream finished
+        this.delay = opts.delay || 18;       // ms between words
+        this._resolve = null;
+        this.finished = new Promise(r => this._resolve = r);
+      }
+
+      push(text) {
+        // Split incoming chunk into individual words, preserving whitespace
+        // so we can render word-by-word instead of char-by-char
+        const words = text.match(/\S+|\s+/g);
+        if (words) {
+          for (const w of words) this.queue.push(w);
+        }
+        if (!this.rendering) this._render();
+      }
+
+      end() {
+        this.done = true;
+        if (!this.rendering) this._finish();
+      }
+
+      async _render() {
+        this.rendering = true;
+        while (this.queue.length > 0) {
+          const word = this.queue.shift();
+          this.textEl.insertBefore(document.createTextNode(word), this.cursorEl);
+
+          // Adaptive speed: go faster when the queue is large (catching up)
+          // go slower (natural) when queue is small
+          const qLen = this.queue.length;
+          let pause;
+          if (qLen > 200) pause = 2;
+          else if (qLen > 80) pause = 5;
+          else if (qLen > 30) pause = 10;
+          else pause = this.delay;
+
+          // Scroll periodically, not every single word (performance)
+          if (qLen % 5 === 0 || qLen < 5) scrollToBottom();
+
+          await this._sleep(pause);
+        }
+        this.rendering = false;
+        scrollToBottom();
+        if (this.done) this._finish();
+      }
+
+      _finish() {
+        if (this.cursorEl && this.cursorEl.parentNode) {
+          this.cursorEl.remove();
+        }
+        this._resolve();
+      }
+
+      _sleep(ms) {
+        return new Promise(r => setTimeout(r, ms));
+      }
+    }
 
     // ---- Mode toggle ----
     document.querySelectorAll(".mode-btn").forEach((btn) => {
@@ -419,10 +680,59 @@
       sendBtn.disabled = false;
     }
 
+    // ---- Pipeline progress bar helpers ----
+    function showProgress() {
+      pipelineProgress.classList.add("visible");
+      // Reset all steps
+      document.querySelectorAll(".progress-step").forEach(s => {
+        s.classList.remove("active", "completed");
+      });
+      document.querySelectorAll(".progress-connector").forEach(c => {
+        c.classList.remove("filled");
+      });
+    }
+
+    function setProgressActive(agentName) {
+      const key = agentName.toLowerCase();
+      const idx = AGENT_ORDER.indexOf(key);
+
+      document.querySelectorAll(".progress-step").forEach((step, i) => {
+        step.classList.remove("active");
+        if (i < idx) {
+          step.classList.add("completed");
+        } else if (i === idx) {
+          step.classList.add("active");
+        }
+      });
+
+      // Fill connectors for completed steps
+      document.querySelectorAll(".progress-connector").forEach((conn, i) => {
+        if (i < idx) {
+          conn.classList.add("filled");
+        }
+      });
+    }
+
+    function completeProgress() {
+      document.querySelectorAll(".progress-step").forEach(s => {
+        s.classList.remove("active");
+        s.classList.add("completed");
+      });
+      document.querySelectorAll(".progress-connector").forEach(c => {
+        c.classList.add("filled");
+      });
+    }
+
+    function hideProgress() {
+      // Keep visible to show completed state
+    }
+
     // ---- Stream pipeline ----
     async function streamPipeline(topic) {
-      const container = createAgentMessageContainer();
-      let currentAgentEl = null;
+      let currentStreamer = null;
+      let currentBadge = null;
+
+      showProgress();
 
       try {
         const response = await fetch(`${API_BASE}/api/pipeline`, {
@@ -435,44 +745,73 @@
 
         await processSSEStream(response.body, {
           onAgent(name) {
-            // Add divider if not the first agent
-            if (currentAgentEl) {
-              container.appendChild(createEl("hr", "agent-divider"));
-            }
-            const label = createEl("div", `agent-label ${name.toLowerCase()}`);
-            label.innerHTML = `<span class="dot"></span>${name}`;
-            container.appendChild(label);
+            const key = name.toLowerCase();
 
-            const textEl = createEl("div", "agent-text");
-            container.appendChild(textEl);
-            currentAgentEl = textEl;
+            // Finalize previous streamer — mark done and let it drain
+            if (currentStreamer) currentStreamer.end();
+            if (currentBadge) {
+              currentBadge.textContent = "Done";
+              currentBadge.className = "agent-status-badge done";
+            }
+
+            // Update progress bar
+            setProgressActive(name);
+
+            // Create a new separate bubble for this agent
+            const bubble = createAgentBubble(key, name);
+            const textEl = bubble.querySelector(".agent-text");
+
+            // Add blinking cursor
+            const cursor = document.createElement("span");
+            cursor.className = "typing-cursor";
+            textEl.appendChild(cursor);
+
+            currentBadge = bubble.querySelector(".agent-status-badge");
+
+            // Create a new streamer for this agent's text
+            currentStreamer = new TextStreamer(textEl, cursor);
+
             scrollToBottom();
           },
           onText(text) {
-            if (currentAgentEl) {
-              currentAgentEl.textContent += text;
-              scrollToBottom();
+            if (currentStreamer) {
+              currentStreamer.push(text);
             }
           },
-          onDone() {
+          async onDone() {
+            // Signal the last streamer to finish, then wait for it to drain
+            if (currentStreamer) {
+              currentStreamer.end();
+              await currentStreamer.finished;
+            }
+            if (currentBadge) {
+              currentBadge.textContent = "Done";
+              currentBadge.className = "agent-status-badge done";
+            }
+            completeProgress();
             addStatus("Pipeline complete");
           },
         });
       } catch (err) {
+        if (currentStreamer) currentStreamer.end();
         addStatus(`Error: ${err.message}`, true);
       }
     }
 
     // ---- Stream individual agent ----
     async function streamAgent(agentName, message) {
-      const container = createAgentMessageContainer();
+      const key = agentName.toLowerCase();
+      const displayName = capitalize(agentName);
+      const bubble = createAgentBubble(key, displayName);
+      const textEl = bubble.querySelector(".agent-text");
+      const badge = bubble.querySelector(".agent-status-badge");
 
-      const label = createEl("div", `agent-label ${agentName}`);
-      label.innerHTML = `<span class="dot"></span>${capitalize(agentName)}`;
-      container.appendChild(label);
+      // Add blinking cursor
+      const cursor = document.createElement("span");
+      cursor.className = "typing-cursor";
+      textEl.appendChild(cursor);
 
-      const textEl = createEl("div", "agent-text");
-      container.appendChild(textEl);
+      const streamer = new TextStreamer(textEl, cursor);
 
       try {
         const response = await fetch(`${API_BASE}/api/agents/${agentName}`, {
@@ -486,12 +825,17 @@
         await processSSEStream(response.body, {
           onAgent() {},
           onText(text) {
-            textEl.textContent += text;
-            scrollToBottom();
+            streamer.push(text);
           },
-          onDone() {},
+          async onDone() {
+            streamer.end();
+            await streamer.finished;
+            badge.textContent = "Done";
+            badge.className = "agent-status-badge done";
+          },
         });
       } catch (err) {
+        streamer.end();
         addStatus(`Error: ${err.message}`, true);
       }
     }
@@ -554,11 +898,35 @@
       scrollToBottom();
     }
 
-    function createAgentMessageContainer() {
-      const el = createEl("div", "msg msg-agent");
-      messagesEl.appendChild(el);
+    function createAgentBubble(agentKey, displayName) {
+      const bubble = createEl("div", `msg msg-agent ${agentKey}`);
+
+      // Header row: avatar + name + streaming badge
+      const header = createEl("div", "agent-header");
+
+      const avatar = createEl("div", `agent-avatar ${agentKey}`);
+      avatar.textContent = AGENT_ICONS[agentKey] || "";
+      header.appendChild(avatar);
+
+      const name = createEl("span", `agent-name ${agentKey}`);
+      name.textContent = displayName;
+      header.appendChild(name);
+
+      const badge = createEl("span", "agent-status-badge streaming");
+      badge.textContent = "Streaming";
+      header.appendChild(badge);
+
+      bubble.appendChild(header);
+
+      // Body
+      const body = createEl("div", "agent-body");
+      const textEl = createEl("div", "agent-text");
+      body.appendChild(textEl);
+      bubble.appendChild(body);
+
+      messagesEl.appendChild(bubble);
       scrollToBottom();
-      return el;
+      return bubble;
     }
 
     function addStatus(text, isError = false) {

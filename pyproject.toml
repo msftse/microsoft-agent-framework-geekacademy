@@ -1,13 +1,16 @@
 [project]
 name = "geektime-maf-poc"
-version = "0.1.0"
-description = "Microsoft Agent Framework POC - Multi-Agent Content Pipeline with MCP"
+version = "0.2.0"
+description = "Microsoft Agent Framework POC - Multi-Agent Content Pipeline with MCP (AI Foundry)"
 requires-python = ">=3.10"
 dependencies = [
-    "agent-framework[azure]",
+    "agent-framework",
+    "agent-framework-azure-ai",
+    "agent-framework-orchestrations",
     "agent-framework-a2a",
     "a2a-sdk[http-server]",
     "azure-identity",
+    "azure-ai-projects",
     "azure-monitor-opentelemetry",
     "opentelemetry-sdk",
     "python-dotenv",
@@ -21,4 +24,4 @@ dependencies = [
 start = "pipeline.main:run"
 
 [tool.setuptools.packages.find]
-include = ["pipeline*", "api*", "a2a_demo*", "evaluation*"]
+include = ["pipeline*", "api*", "a2a_demo*", "evaluation*", "prompts*"]

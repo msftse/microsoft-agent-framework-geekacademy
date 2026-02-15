@@ -1,5 +1,8 @@
 """A2A Server — exposes the Reviewer agent over the A2A protocol.
 
+Uses the new Azure AI Foundry Agent SDK.  The Reviewer agent is registered
+as a persistent resource in AI Foundry and also exposed via A2A.
+
 Run:  python -m a2a_demo.server
 Then:  python -m a2a_demo.client  (in another terminal)
 """
@@ -12,7 +15,7 @@ import uuid
 import uvicorn
 from azure.identity.aio import AzureCliCredential
 from agent_framework.azure import AzureAIAgentClient
-from agent_framework import ChatMessage
+from agent_framework import Message, Role
 
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -33,11 +36,12 @@ from a2a.types import (
 )
 
 from pipeline.config import load_settings
+from prompts import load_prompt
 
 HOST = "localhost"
 PORT = 9000
 
-# ── Agent executor: bridges agent-framework → A2A protocol ──────────────
+# -- Agent executor: bridges agent-framework -> A2A protocol ----------------
 
 
 class ReviewerExecutor(AgentExecutor):
@@ -61,10 +65,8 @@ class ReviewerExecutor(AgentExecutor):
             )
         )
 
-        # Run the agent-framework agent
-        response = await self._agent.run(
-            ChatMessage(role="user", text=user_input),
-        )
+        # Run the agent-framework agent (Message replaces the old ChatMessage)
+        response = await self._agent.run(user_input)
         result_text = response.text or ""
 
         # Publish the result as an artifact
@@ -103,7 +105,7 @@ class ReviewerExecutor(AgentExecutor):
         )
 
 
-# ── Build & serve ───────────────────────────────────────────────────────
+# -- Build & serve -----------------------------------------------------------
 
 
 async def build_app():
@@ -114,16 +116,13 @@ async def build_app():
     client = AzureAIAgentClient(
         project_endpoint=settings.project_endpoint,
         model_deployment_name=settings.model_deployment,
-        credential=credential,
+        async_credential=credential,
     )
 
+    # Agent is registered in AI Foundry as "Reviewer"
     reviewer = client.as_agent(
         name="Reviewer",
-        instructions=(
-            "You are a senior technical editor. Review the provided article for "
-            "technical accuracy, clarity, code correctness, and logical flow. "
-            "Output the final polished version, fixing any issues found."
-        ),
+        instructions=load_prompt("reviewer"),
     )
 
     # Agent card describes this agent to A2A clients

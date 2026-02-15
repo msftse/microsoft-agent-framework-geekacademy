@@ -1,11 +1,13 @@
 """FastAPI server exposing the content pipeline and individual agents as SSE endpoints.
 
+Uses the new Azure AI Foundry Agent SDK.  Agents are registered as persistent
+resources and are visible in the AI Foundry portal.
+
 Run:  python -m api.server
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,13 +21,15 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from azure.identity.aio import DefaultAzureCredential
-from agent_framework.azure import AzureAIAgentClient
+from agent_framework import AgentResponseUpdate
+from agent_framework.azure import AzureAIAgentsProvider
 
 from pipeline.config import load_settings
 from pipeline.tracing import setup_tracing
 from pipeline.tools import create_learn_tool, create_github_tool
 from pipeline.agents import create_researcher, create_writer, create_reviewer
 from pipeline.workflow import build_pipeline
+from prompts import load_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +43,6 @@ class AppState:
     def __init__(self):
         self.credential: DefaultAzureCredential | None = None
         self.agents: dict = {}
-        self.pipeline = None
 
 
 state = AppState()
@@ -52,16 +55,16 @@ state = AppState()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize agent client, MCP tools, agents, and pipeline on startup."""
+    """Initialize agent provider, MCP tools, agents, and pipeline on startup."""
     settings = load_settings()
     setup_tracing(settings)
 
     state.credential = DefaultAzureCredential()
-    client = AzureAIAgentClient(
+    provider = AzureAIAgentsProvider(
         project_endpoint=settings.project_endpoint,
-        model_deployment_name=settings.model_deployment,
         credential=state.credential,
     )
+    await provider.__aenter__()
 
     learn_tool = create_learn_tool()
     github_tool = create_github_tool(settings.github_token)
@@ -70,23 +73,27 @@ async def lifespan(app: FastAPI):
     await learn_tool.__aenter__()
     await github_tool.__aenter__()
 
-    researcher = create_researcher(client, tools=[learn_tool, github_tool])
-    writer = create_writer(client)
-    reviewer = create_reviewer(client)
+    # Agents are eagerly registered in AI Foundry on creation
+    model = settings.model_deployment
+    researcher = await create_researcher(
+        provider, tools=[learn_tool, github_tool], model=model
+    )
+    writer = await create_writer(provider, model=model)
+    reviewer = await create_reviewer(provider, model=model)
 
     state.agents = {
         "researcher": researcher,
         "writer": writer,
         "reviewer": reviewer,
     }
-    state.pipeline = build_pipeline(researcher, writer, reviewer)
 
-    print("[api] Server ready — agents and pipeline initialized")
+    print("[api] Server ready — agents registered in AI Foundry")
     yield
 
     # Cleanup
     await github_tool.__aexit__(None, None, None)
     await learn_tool.__aexit__(None, None, None)
+    await provider.close()
     if state.credential:
         await state.credential.close()
     print("[api] Server shut down")
@@ -98,8 +105,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Content Pipeline API",
-    description="Multi-agent content pipeline with SSE streaming",
-    version="0.1.0",
+    description="Multi-agent content pipeline with SSE streaming (AI Foundry)",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -130,47 +137,98 @@ class MessageRequest(BaseModel):
 
 
 async def stream_pipeline(topic: str):
-    """Stream the full pipeline as SSE events."""
-    message = f"Write a technical article about: {topic}"
-    current_agent = None
+    """Stream the full pipeline as SSE events.
 
-    async for event in state.pipeline.run_stream(message):
-        event_type = type(event).__name__
+    A fresh Workflow is built per request because Workflow instances contain
+    state that is preserved across calls (per Microsoft docs).  For independent
+    concurrent runs we must create separate Workflow instances.
+
+    The SequentialBuilder workflow emits lifecycle events (executor_invoked,
+    executor_completed) but not per-token AgentResponseUpdate events.  We
+    extract each agent's response text from the executor_completed event's
+    message list and stream it to the client.
+    """
+    # Build a fresh pipeline per request for state isolation
+    pipeline = build_pipeline(
+        state.agents["researcher"],
+        state.agents["writer"],
+        state.agents["reviewer"],
+    )
+
+    message = load_prompt("pipeline_message", topic=topic)
+    current_agent = None
+    seen_message_count = 0  # track how many messages we've already seen
+
+    stream = pipeline.run(message, stream=True)
+    async for event in stream:
         executor_id = getattr(event, "executor_id", None)
 
         # Agent handoff
-        if event_type == "ExecutorInvokedEvent" and executor_id not in (
+        if event.type == "executor_invoked" and executor_id not in (
             "input-conversation",
             "end",
+            None,
         ):
             current_agent = executor_id
+            print(f"[pipeline] {executor_id} started")
             yield {
                 "event": "agent",
                 "data": json.dumps({"agent": current_agent}),
             }
 
-        # Text token
-        if event_type == "AgentRunUpdateEvent":
-            data = getattr(event, "data", None)
-            text = getattr(data, "text", None) if data else None
-            if text:
-                yield {
-                    "event": "text",
-                    "data": json.dumps({"agent": current_agent, "text": str(text)}),
-                }
+        # Agent completed — extract new assistant messages and stream text
+        if event.type == "executor_completed" and executor_id not in (
+            "input-conversation",
+            "end",
+            None,
+        ):
+            messages = event.data if isinstance(event.data, list) else []
+            # Only emit new messages (ones added by the current agent)
+            new_messages = messages[seen_message_count:]
+            seen_message_count = len(messages)
+
+            text_count = 0
+            for msg in new_messages:
+                role = getattr(msg, "role", None)
+                text = getattr(msg, "text", None)
+                if role == "assistant" and text:
+                    text_count += 1
+                    yield {
+                        "event": "text",
+                        "data": json.dumps({"agent": current_agent, "text": text}),
+                    }
+            if text_count == 0 and len(new_messages) > 0:
+                # Debug: log first few messages to understand why no text was extracted
+                for i, msg in enumerate(new_messages[:5]):
+                    t = getattr(msg, "text", None)
+                    t_preview = repr(t[:80]) if t else repr(t)
+                    print(
+                        f"[pipeline] DEBUG {executor_id} msg[{i}]: "
+                        f"role={getattr(msg, 'role', None)} "
+                        f"text={t_preview} type={type(msg).__name__}"
+                    )
+            print(
+                f"[pipeline] {executor_id} completed: {text_count} text chunks "
+                f"streamed (from {len(new_messages)} new messages)"
+            )
 
     yield {"event": "done", "data": json.dumps({"status": "complete"})}
 
 
 async def stream_agent(agent, message: str, agent_name: str):
-    """Stream a single agent's response as SSE events."""
+    """Stream a single agent's response as SSE events.
+
+    Uses agent.run(message, stream=True) which returns a ResponseStream.
+    Each chunk is an AgentResponseUpdate with a .text property.
+    """
     yield {
         "event": "agent",
         "data": json.dumps({"agent": agent_name}),
     }
 
-    async for update in agent.run_stream(message):
-        text = getattr(update, "text", None)
+    stream = agent.run(message, stream=True)
+    async for chunk in stream:
+        text = getattr(chunk, "text", None)
         if text:
             yield {
                 "event": "text",
@@ -191,7 +249,6 @@ async def health():
     return {
         "status": "ok",
         "agents": list(state.agents.keys()),
-        "pipeline": state.pipeline is not None,
     }
 
 

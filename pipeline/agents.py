@@ -1,63 +1,58 @@
-"""Agent definitions — Researcher, Writer, Reviewer."""
+"""Agent definitions — Researcher, Writer, Reviewer.
+
+Each agent is created via AzureAIAgentsProvider.create_agent(), which
+**eagerly** registers the agent as a persistent resource in Azure AI Foundry.
+The agents are visible in the Foundry portal immediately after startup.
+"""
 
 from __future__ import annotations
 
-from agent_framework.azure import AzureAIAgentClient
+from agent_framework.azure import AzureAIAgentsProvider
+
+from prompts import load_prompt
 
 
-RESEARCHER_INSTRUCTIONS = """\
-You are a senior technical researcher. Your job is to gather comprehensive, \
-accurate information on the given topic using the available MCP tools.
+async def create_researcher(
+    provider: AzureAIAgentsProvider, tools: list | None = None, model: str | None = None
+):
+    """Researcher agent — uses MCP tools to gather information.
 
-Use "Microsoft Learn" to find official Microsoft documentation and best practices.
-Use "GitHub" to find real code examples and repository details.
-
-Output a structured research brief with: key concepts, official references, \
-and relevant code snippets. Be thorough but concise.\
-"""
-
-WRITER_INSTRUCTIONS = """\
-You are a technical content writer for a developer audience. \
-You receive a research brief and transform it into a clear, engaging article.
-
-Guidelines:
-- Use a professional but approachable tone
-- Include code examples where appropriate
-- Structure with clear headings and bullet points
-- Keep it practical — developers want to build, not just read\
-"""
-
-REVIEWER_INSTRUCTIONS = """\
-You are a senior technical editor. Review the draft article for:
-- Technical accuracy and completeness
-- Clarity and readability for developers
-- Code example correctness
-- Logical structure and flow
-
-Output the final polished version of the article, fixing any issues found.\
-"""
-
-
-def create_researcher(client: AzureAIAgentClient, tools: list) -> object:
-    """Researcher agent — uses MCP tools to gather information."""
-    return client.as_agent(
+    MCP tools cannot be passed directly to provider.create_agent() because
+    they are runtime-only (not stored on the Azure service).  We create the
+    agent without them, then attach MCP tools to the local Agent wrapper.
+    """
+    agent = await provider.create_agent(
         name="Researcher",
-        instructions=RESEARCHER_INSTRUCTIONS,
-        tools=tools,
+        model=model,
+        instructions=load_prompt("researcher"),
     )
+    # Attach MCP tools to the local Agent wrapper for runtime use
+    if tools:
+        from agent_framework._mcp import MCPTool
+
+        agent.mcp_tools = [t for t in tools if isinstance(t, MCPTool)]
+    return agent
 
 
-def create_writer(client: AzureAIAgentClient) -> object:
-    """Writer agent — transforms research into a developer article."""
-    return client.as_agent(
+async def create_writer(provider: AzureAIAgentsProvider, model: str | None = None):
+    """Writer agent — transforms research into a developer article.
+
+    Registered in AI Foundry as "Writer".
+    """
+    return await provider.create_agent(
         name="Writer",
-        instructions=WRITER_INSTRUCTIONS,
+        model=model,
+        instructions=load_prompt("writer"),
     )
 
 
-def create_reviewer(client: AzureAIAgentClient) -> object:
-    """Reviewer agent — polishes the final article."""
-    return client.as_agent(
+async def create_reviewer(provider: AzureAIAgentsProvider, model: str | None = None):
+    """Reviewer agent — polishes the final article.
+
+    Registered in AI Foundry as "Reviewer".
+    """
+    return await provider.create_agent(
         name="Reviewer",
-        instructions=REVIEWER_INSTRUCTIONS,
+        model=model,
+        instructions=load_prompt("reviewer"),
     )

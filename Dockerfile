@@ -7,7 +7,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip
 
 COPY pyproject.toml .
-RUN pip install --no-cache-dir --prefix=/install .
+RUN pip install --no-cache-dir --pre --prefix=/install .
 
 
 # ---- Runtime stage ----
@@ -30,6 +30,7 @@ COPY pipeline/ pipeline/
 COPY api/ api/
 COPY a2a_demo/ a2a_demo/
 COPY evaluation/ evaluation/
+COPY prompts/ prompts/
 COPY frontend/ frontend/
 COPY run.py .
 

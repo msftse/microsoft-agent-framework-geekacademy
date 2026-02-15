@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from agent_framework._workflows import SequentialBuilder
-from agent_framework._workflows._workflow import Workflow
+from agent_framework.orchestrations import SequentialBuilder
 
 
-def build_pipeline(researcher, writer, reviewer) -> Workflow:
-    """Build a sequential multi-agent workflow."""
-    return SequentialBuilder().participants([researcher, writer, reviewer]).build()
+def build_pipeline(researcher, writer, reviewer):
+    """Build a sequential multi-agent workflow.
+
+    Uses the new AI Foundry-compatible SequentialBuilder from
+    agent_framework.orchestrations (replaces the old _workflows internal module).
+    """
+    return SequentialBuilder(participants=[researcher, writer, reviewer]).build()

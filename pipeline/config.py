@@ -1,4 +1,10 @@
-"""Configuration loader — reads .env and validates required settings."""
+"""Configuration loader — reads .env and validates required settings.
+
+Environment variables follow the Azure AI Foundry convention:
+  AZURE_AI_PROJECT_ENDPOINT  – AI Foundry project endpoint
+  AZURE_AI_MODEL_DEPLOYMENT_NAME – model deployment (e.g. gpt-4o)
+  GITHUB_PERSONAL_ACCESS_TOKEN – for the GitHub MCP tool
+"""
 
 from __future__ import annotations
 
@@ -20,12 +26,19 @@ def load_settings() -> Settings:
     """Load settings from environment / .env file."""
     load_dotenv()
 
-    endpoint = os.environ.get("PROJECT_ENDPOINT", "")
-    deployment = os.environ.get("MODEL_DEPLOYMENT_NAME", "gpt-4o")
+    # Support both old (PROJECT_ENDPOINT) and new (AZURE_AI_PROJECT_ENDPOINT) env var names
+    endpoint = os.environ.get("AZURE_AI_PROJECT_ENDPOINT") or os.environ.get(
+        "PROJECT_ENDPOINT", ""
+    )
+    deployment = os.environ.get("AZURE_AI_MODEL_DEPLOYMENT_NAME") or os.environ.get(
+        "MODEL_DEPLOYMENT_NAME", "gpt-4o"
+    )
     github_token = os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
 
     if not endpoint:
-        raise EnvironmentError("PROJECT_ENDPOINT is required. See .env.example")
+        raise EnvironmentError(
+            "AZURE_AI_PROJECT_ENDPOINT (or PROJECT_ENDPOINT) is required. See .env.example"
+        )
     if not github_token:
         raise EnvironmentError(
             "GITHUB_PERSONAL_ACCESS_TOKEN is required. See .env.example"
