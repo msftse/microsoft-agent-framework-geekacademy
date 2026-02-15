@@ -22,13 +22,14 @@ from sse_starlette.sse import EventSourceResponse
 
 from azure.identity.aio import DefaultAzureCredential
 from agent_framework import AgentResponseUpdate
-from agent_framework.azure import AzureAIAgentsProvider
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 from pipeline.config import load_settings
 from pipeline.tracing import setup_tracing
 from pipeline.tools import create_learn_tool, create_github_tool
 from pipeline.agents import create_researcher, create_writer, create_reviewer
 from pipeline.workflow import build_pipeline
+from pipeline.memory import ensure_memory_store
 from prompts import load_prompt
 
 
@@ -55,12 +56,29 @@ state = AppState()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize agent provider, MCP tools, agents, and pipeline on startup."""
+    """Initialize agent provider, MCP tools, memory store, agents, and pipeline on startup."""
     settings = load_settings()
     setup_tracing(settings)
 
     state.credential = DefaultAzureCredential()
-    provider = AzureAIAgentsProvider(
+
+    # Create memory store if memory config is provided
+    memory_store_name = None
+    if settings.memory_chat_model and settings.memory_embedding_model:
+        memory_store_name = await ensure_memory_store(
+            endpoint=settings.project_endpoint,
+            credential=state.credential,
+            store_name=settings.memory_store_name,
+            chat_model=settings.memory_chat_model,
+            embedding_model=settings.memory_embedding_model,
+        )
+    else:
+        print(
+            "[api] Memory disabled — set AZURE_AI_CHAT_MODEL_DEPLOYMENT_NAME and "
+            "AZURE_AI_EMBEDDING_MODEL_DEPLOYMENT_NAME to enable"
+        )
+
+    provider = AzureAIProjectAgentProvider(
         project_endpoint=settings.project_endpoint,
         credential=state.credential,
     )
@@ -76,10 +94,17 @@ async def lifespan(app: FastAPI):
     # Agents are eagerly registered in AI Foundry on creation
     model = settings.model_deployment
     researcher = await create_researcher(
-        provider, tools=[learn_tool, github_tool], model=model
+        provider,
+        tools=[learn_tool, github_tool],
+        model=model,
+        memory_store_name=memory_store_name,
     )
-    writer = await create_writer(provider, model=model)
-    reviewer = await create_reviewer(provider, model=model)
+    writer = await create_writer(
+        provider, model=model, memory_store_name=memory_store_name
+    )
+    reviewer = await create_reviewer(
+        provider, model=model, memory_store_name=memory_store_name
+    )
 
     state.agents = {
         "researcher": researcher,
@@ -87,7 +112,10 @@ async def lifespan(app: FastAPI):
         "reviewer": reviewer,
     }
 
-    print("[api] Server ready — agents registered in AI Foundry")
+    print(
+        "[api] Server ready — agents registered in AI Foundry"
+        + (f" (memory: {memory_store_name})" if memory_store_name else "")
+    )
     yield
 
     # Cleanup

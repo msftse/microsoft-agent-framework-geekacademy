@@ -11,13 +11,14 @@ import sys
 
 from azure.identity.aio import AzureCliCredential
 from agent_framework import AgentResponseUpdate
-from agent_framework.azure import AzureAIAgentClient
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 from pipeline.config import load_settings
 from pipeline.tracing import setup_tracing
 from pipeline.tools import create_learn_tool, create_github_tool
 from pipeline.agents import create_researcher, create_writer, create_reviewer
 from pipeline.workflow import build_pipeline
+from pipeline.memory import ensure_memory_store
 from prompts import load_prompt
 
 DEFAULT_TOPIC = "Azure Functions serverless computing"
@@ -28,56 +29,75 @@ async def main() -> None:
     settings = load_settings()
     setup_tracing(settings)
 
-    # 2. Create Azure AI Foundry agent client (uses async credential)
+    # 2. Create Azure AI Foundry agent provider (uses async credential)
     credential = AzureCliCredential()
 
-    chat_client = AzureAIAgentClient(
+    # Create memory store if configured
+    memory_store_name = None
+    if settings.memory_chat_model and settings.memory_embedding_model:
+        memory_store_name = await ensure_memory_store(
+            endpoint=settings.project_endpoint,
+            credential=credential,
+            store_name=settings.memory_store_name,
+            chat_model=settings.memory_chat_model,
+            embedding_model=settings.memory_embedding_model,
+        )
+
+    async with AzureAIProjectAgentProvider(
         project_endpoint=settings.project_endpoint,
-        model_deployment_name=settings.model_deployment,
-        async_credential=credential,
-    )
+        credential=credential,
+    ) as provider:
+        # 3. Start MCP tool servers
+        learn_tool = create_learn_tool()
+        github_tool = create_github_tool(settings.github_token)
 
-    # 3. Start MCP tool servers
-    learn_tool = create_learn_tool()
-    github_tool = create_github_tool(settings.github_token)
+        async with learn_tool, github_tool:
+            # 4. Create agents — each is registered in AI Foundry
+            researcher = await create_researcher(
+                provider,
+                tools=[learn_tool, github_tool],
+                memory_store_name=memory_store_name,
+            )
+            writer = await create_writer(provider, memory_store_name=memory_store_name)
+            reviewer = await create_reviewer(
+                provider, memory_store_name=memory_store_name
+            )
 
-    async with learn_tool, github_tool:
-        # 4. Create agents — each is registered in AI Foundry
-        researcher = create_researcher(chat_client, tools=[learn_tool, github_tool])
-        writer = create_writer(chat_client)
-        reviewer = create_reviewer(chat_client)
+            # 5. Build sequential pipeline
+            pipeline = build_pipeline(researcher, writer, reviewer)
 
-        # 5. Build sequential pipeline
-        pipeline = build_pipeline(researcher, writer, reviewer)
+            # 6. Get topic from user
+            topic = (
+                input(f"\nEnter a topic [{DEFAULT_TOPIC}]: ").strip() or DEFAULT_TOPIC
+            )
+            print(f"\n{'=' * 60}")
+            print(f"Running content pipeline for: {topic}")
+            print(f"{'=' * 60}\n")
 
-        # 6. Get topic from user
-        topic = input(f"\nEnter a topic [{DEFAULT_TOPIC}]: ").strip() or DEFAULT_TOPIC
-        print(f"\n{'=' * 60}")
-        print(f"Running content pipeline for: {topic}")
-        print(f"{'=' * 60}\n")
+            # 7. Stream output, showing agent handoffs
+            message = load_prompt("pipeline_message", topic=topic)
+            last_executor_id = None
 
-        # 7. Stream output, showing agent handoffs
-        message = load_prompt("pipeline_message", topic=topic)
-        last_executor_id = None
+            async for event in pipeline.run(message, stream=True):
+                # Agent handoff: show when a new executor starts
+                if event.type == "executor_invoked":
+                    executor_id = getattr(event, "executor_id", None)
+                    if executor_id not in ("input-conversation", "end", None):
+                        if last_executor_id is not None:
+                            print(f"\n{'-' * 40}")
+                        print(f"\n[{executor_id}]:")
+                        last_executor_id = executor_id
 
-        async for event in pipeline.run_stream(message):
-            # Agent handoff: show when a new executor starts
-            if event.type == "executor_invoked":
-                executor_id = event.executor_id
-                if executor_id not in ("input-conversation", "end"):
-                    if last_executor_id is not None:
-                        print(f"\n{'-' * 40}")
-                    print(f"\n[{executor_id}]:")
-                    last_executor_id = executor_id
+                # Streaming text tokens from agents
+                if event.type == "output" and isinstance(
+                    event.data, AgentResponseUpdate
+                ):
+                    text = str(event.data)
+                    if text:
+                        print(text, end="", flush=True)
 
-            # Streaming text tokens from agents
-            if event.type == "output" and isinstance(event.data, AgentResponseUpdate):
-                text = str(event.data)
-                if text:
-                    print(text, end="", flush=True)
-
-        print(f"\n\n{'=' * 60}")
-        print("Pipeline complete!")
+            print(f"\n\n{'=' * 60}")
+            print("Pipeline complete!")
 
     await credential.close()
 
