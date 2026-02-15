@@ -1,0 +1,28 @@
+kind: Workflow
+trigger:
+  kind: OnConversationStart
+  id: content_pipeline_workflow
+  actions:
+    # Phase 1: Research the topic
+    - kind: InvokeAzureAgent
+      id: invoke_researcher
+      displayName: Research phase
+      agent:
+        name: Researcher
+      conversationId: =System.ConversationId
+
+    # Phase 2: Write the article based on research
+    - kind: InvokeAzureAgent
+      id: invoke_writer
+      displayName: Writing phase
+      agent:
+        name: Writer
+      conversationId: =System.ConversationId
+
+    # Phase 3: Review and polish the final article
+    - kind: InvokeAzureAgent
+      id: invoke_reviewer
+      displayName: Review phase
+      agent:
+        name: Reviewer
+      conversationId: =System.ConversationId

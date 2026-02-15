@@ -18,6 +18,7 @@ dependencies = [
     "fastapi",
     "sse-starlette",
     "azure-ai-evaluation",
+    "httpx",
 ]
 
 [project.scripts]
