@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 class Settings:
     project_endpoint: str
     model_deployment: str
-    github_token: str
+    github_token: str | None = None
     app_insights_connection_string: str | None = None
     # Memory search
     memory_chat_model: str | None = None
@@ -37,15 +37,11 @@ def load_settings() -> Settings:
     deployment = os.environ.get("AZURE_AI_MODEL_DEPLOYMENT_NAME") or os.environ.get(
         "MODEL_DEPLOYMENT_NAME", "gpt-4o"
     )
-    github_token = os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN", "")
+    github_token = os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN") or None
 
     if not endpoint:
         raise EnvironmentError(
             "AZURE_AI_PROJECT_ENDPOINT (or PROJECT_ENDPOINT) is required. See .env.example"
-        )
-    if not github_token:
-        raise EnvironmentError(
-            "GITHUB_PERSONAL_ACCESS_TOKEN is required. See .env.example"
         )
 
     return Settings(

@@ -49,13 +49,19 @@ async def main() -> None:
     ) as provider:
         # 3. Start MCP tool servers
         learn_tool = create_learn_tool()
-        github_tool = create_github_tool(settings.github_token)
+        github_tool = (
+            create_github_tool(settings.github_token) if settings.github_token else None
+        )
+        tools = [learn_tool] + ([github_tool] if github_tool else [])
 
-        async with learn_tool, github_tool:
+        async with learn_tool:
+            if github_tool:
+                await github_tool.__aenter__()
+
             # 4. Create agents — each is registered in AI Foundry
             researcher = await create_researcher(
                 provider,
-                tools=[learn_tool, github_tool],
+                tools=tools,
                 memory_store_name=memory_store_name,
             )
             writer = await create_writer(provider, memory_store_name=memory_store_name)
@@ -99,6 +105,9 @@ async def main() -> None:
             print(f"\n\n{'=' * 60}")
             print("Pipeline complete!")
 
+            if github_tool:
+                await github_tool.__aexit__(None, None, None)
+
     await credential.close()
 
 
@@ -109,7 +118,6 @@ def run() -> None:
     except KeyboardInterrupt:
         print("\nInterrupted.")
         sys.exit(0)
-        
 
 
 if __name__ == "__main__":

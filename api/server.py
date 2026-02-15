@@ -85,17 +85,21 @@ async def lifespan(app: FastAPI):
     await provider.__aenter__()
 
     learn_tool = create_learn_tool()
-    github_tool = create_github_tool(settings.github_token)
+    github_tool = (
+        create_github_tool(settings.github_token) if settings.github_token else None
+    )
+    tools = [learn_tool] + ([github_tool] if github_tool else [])
 
     # Enter MCP tool context managers
     await learn_tool.__aenter__()
-    await github_tool.__aenter__()
+    if github_tool:
+        await github_tool.__aenter__()
 
     # Agents are eagerly registered in AI Foundry on creation
     model = settings.model_deployment
     researcher = await create_researcher(
         provider,
-        tools=[learn_tool, github_tool],
+        tools=tools,
         model=model,
         memory_store_name=memory_store_name,
     )
@@ -112,14 +116,16 @@ async def lifespan(app: FastAPI):
         "reviewer": reviewer,
     }
 
+    tools_info = "learn" + (", github" if github_tool else "")
     print(
-        "[api] Server ready — agents registered in AI Foundry"
+        f"[api] Server ready — agents registered in AI Foundry (tools: {tools_info})"
         + (f" (memory: {memory_store_name})" if memory_store_name else "")
     )
     yield
 
     # Cleanup
-    await github_tool.__aexit__(None, None, None)
+    if github_tool:
+        await github_tool.__aexit__(None, None, None)
     await learn_tool.__aexit__(None, None, None)
     await provider.close()
     if state.credential:

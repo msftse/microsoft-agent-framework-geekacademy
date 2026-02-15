@@ -9,6 +9,7 @@ trigger:
       displayName: Research phase
       agent:
         name: Researcher
+      conversationId: =System.ConversationId
 
     # Phase 2: Write the article based on research
     - kind: InvokeAzureAgent
@@ -16,6 +17,7 @@ trigger:
       displayName: Writing phase
       agent:
         name: Writer
+      conversationId: =System.ConversationId
 
     # Phase 3: Review and polish the final article
     - kind: InvokeAzureAgent
@@ -23,3 +25,4 @@ trigger:
       displayName: Review phase
       agent:
         name: Reviewer
+      conversationId: =System.ConversationId
