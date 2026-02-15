@@ -109,6 +109,7 @@ def run() -> None:
     except KeyboardInterrupt:
         print("\nInterrupted.")
         sys.exit(0)
+        
 
 
 if __name__ == "__main__":
