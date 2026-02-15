@@ -20,6 +20,10 @@ class Settings:
     model_deployment: str
     github_token: str
     app_insights_connection_string: str | None = None
+    # Memory search
+    memory_chat_model: str | None = None
+    memory_embedding_model: str | None = None
+    memory_store_name: str = "geektime_pipeline_memory"
 
 
 def load_settings() -> Settings:
@@ -52,4 +56,12 @@ def load_settings() -> Settings:
             "APPLICATION_INSIGHTS_CONNECTION_STRING"
         )
         or None,
+        memory_chat_model=os.environ.get("AZURE_AI_CHAT_MODEL_DEPLOYMENT_NAME") or None,
+        memory_embedding_model=os.environ.get(
+            "AZURE_AI_EMBEDDING_MODEL_DEPLOYMENT_NAME"
+        )
+        or None,
+        memory_store_name=os.environ.get(
+            "AZURE_AI_MEMORY_STORE_NAME", "geektime_pipeline_memory"
+        ),
     )
